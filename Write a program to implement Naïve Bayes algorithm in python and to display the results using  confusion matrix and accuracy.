@@ -1,0 +1,76 @@
+import numpy as np
+from collections import defaultdict
+from sklearn import datasets
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import confusion_matrix, accuracy_score
+
+# Load the Iris dataset
+iris = datasets.load_iris()
+X = iris.data
+y = iris.target
+
+# Split the dataset into training and test sets (80% train, 20% test)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Naive Bayes Classifier (Multinomial Naive Bayes for continuous data)
+class NaiveBayes:
+    def __init__(self):
+        self.class_probs = {}
+        self.feature_probs = defaultdict(list)
+    
+    def fit(self, X_train, y_train):
+        self.classes = np.unique(y_train)
+        self.class_probs = {c: np.mean(y_train == c) for c in self.classes}
+        
+        # Calculate the mean and variance for each feature per class
+        for c in self.classes:
+            class_data = X_train[y_train == c]
+            self.feature_probs[c] = {
+                "mean": np.mean(class_data, axis=0),
+                "var": np.var(class_data, axis=0)
+            }
+    
+    def predict(self, X_test):
+        predictions = [self._predict(x) for x in X_test]
+        return np.array(predictions)
+    
+    def _predict(self, x):
+        posteriors = {}
+        
+        for c in self.classes:
+            # Start with the prior probability of the class
+            prior = np.log(self.class_probs[c])
+            
+            # Add the log of the likelihood of each feature (Gaussian Naive Bayes assumption)
+            likelihood = 0
+            mean = self.feature_probs[c]["mean"]
+            var = self.feature_probs[c]["var"]
+            for feature, m, v in zip(x, mean, var):
+                # Using the Gaussian probability density function (PDF)
+                likelihood += np.log(self._gaussian_pdf(feature, m, v))
+            
+            # Posterior = Prior * Likelihood
+            posteriors[c] = prior + likelihood
+        
+        # Return the class with the highest posterior probability
+        return max(posteriors, key=posteriors.get)
+    
+    def _gaussian_pdf(self, x, mean, var):
+        # Gaussian Probability Density Function
+        eps = 1e-6  # Adding a small epsilon to prevent division by zero
+        return (1 / np.sqrt(2 * np.pi * var + eps)) * np.exp(- (x - mean) ** 2 / (2 * var + eps))
+
+# Create and train the Naive Bayes classifier
+nb = NaiveBayes()
+nb.fit(X_train, y_train)
+
+# Make predictions on the test set
+y_pred = nb.predict(X_test)
+
+# Evaluate the model: Confusion Matrix and Accuracy
+conf_matrix = confusion_matrix(y_test, y_pred)
+accuracy = accuracy_score(y_test, y_pred)
+
+print("Confusion Matrix:")
+print(conf_matrix)
+print("\nAccuracy:", accuracy)
